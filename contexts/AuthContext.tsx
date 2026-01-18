@@ -154,13 +154,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(token);
       setIsAuthenticated(true);
     } catch (error) {
-      throw new Error("Login failed");
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Login failed: ${errorMessage}`);
     }
   };
 
   const setApiKey = async (apiKey: string, apiUrl: string) => {
     try {
-      const directus = createDirectus(apiUrl).with(authentication()).with(rest());
+      const directus = createDirectus(apiUrl)
+        .with(authentication())
+        .with(
+          rest({
+            onResponse: async (response) => {
+              if (response.status === 401) {
+                await logout();
+                router.push("/login");
+              }
+              return response;
+            },
+          })
+        );
       setDirectus(directus);
       await directus.setToken(apiKey);
       setToken(apiKey);
@@ -168,7 +181,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(user as DirectusUser);
       setIsAuthenticated(true);
     } catch (error) {
-      throw new Error("Login failed");
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`API Key authentication failed: ${errorMessage}`);
     }
   };
 

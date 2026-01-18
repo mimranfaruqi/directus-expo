@@ -47,16 +47,29 @@ export const APIForm = ({
 
     try {
       const url = new URL(newApi.url);
-      newApi.url = url.href.replace(/\/$/, "");
+      // Validate URL has no path (only origin)
+      if (url.pathname !== '/' && url.pathname !== '') {
+        form.setError("url", { 
+          message: "URL should not contain a path. Use base URL only (e.g., https://example.com)" 
+        }, { shouldFocus: true });
+        return;
+      }
+      newApi.url = url.origin;
     } catch (error) {
       form.setError("url", { message: "Invalid URL" }, { shouldFocus: true });
       return;
     }
     try {
-      const test = await fetch(`${newApi.url}/server/health`);
+      const test = await fetch(`${newApi.url}/server/ping`);
       if (!test.ok) {
         throw new Error(
-          "Host is not reachable. There might be something wrong with your config."
+          `Host is not reachable (Status: ${test.status}). Check the /server/ping endpoint.`
+        );
+      }
+      const response = await test.text();
+      if (response !== "pong") {
+        throw new Error(
+          `Unexpected response from /server/ping. Expected 'pong', got '${response}'.`
         );
       }
       if (!newApi.id) {
@@ -75,7 +88,7 @@ export const APIForm = ({
         form.setError(
           "url",
           {
-            message: `${error.message}. Check the /server/health path of your instance.`,
+            message: `${error.message}. Check the /server/ping endpoint of your instance.`,
           },
           { shouldFocus: true }
         );

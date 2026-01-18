@@ -108,15 +108,39 @@ export const LoginForm = () => {
   useEffect(() => {
     if (url) {
       clearErrors("api");
-      fetch(`${url}/server/health`)
-        .then((res) => res.json())
+      
+      // Validate URL has no path (only origin)
+      try {
+        const urlObj = new URL(url);
+        if (urlObj.pathname !== '/' && urlObj.pathname !== '') {
+          setError("api", { 
+            message: t("form.errors.apiNotHealthy") + " URL should not contain a path (e.g., /admin). Use base URL only." 
+          });
+          return;
+        }
+      } catch (e) {
+        setError("api", { message: "Invalid URL format" });
+        return;
+      }
+      
+      fetch(`${url}/server/ping`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Server returned status ${res.status}`);
+          }
+          return res.text();
+        })
         .then((data) => {
-          if (data.status !== "ok") {
-            setError("api", { message: t("form.errors.apiNotHealthy") });
+          if (data !== "pong") {
+            setError("api", { 
+              message: t("form.errors.apiNotHealthy") + ` (Expected 'pong', got '${data}')` 
+            });
           }
         })
-        .catch(() => {
-          setError("api", { message: t("form.errors.apiNotHealthy") });
+        .catch((error) => {
+          setError("api", { 
+            message: t("form.errors.apiNotHealthy") + ` Error: ${error.message}` 
+          });
         });
     }
   }, [url]);
@@ -134,23 +158,23 @@ export const LoginForm = () => {
   const onSubmit = async (data: LoginFormData) => {
     if (data.type === "email") {
       try {
-        console.log({ data });
         await login(data.email, data.password, data.api.url);
         mutateApi.mutate(data.api);
         mutateLogin.mutate(data);
         router.push("/");
       } catch (error) {
-        Alert.alert("Error", t("form.errors.loginFailed"));
+        const errorMessage = error instanceof Error ? error.message : t("form.errors.loginFailed");
+        Alert.alert("Login Error", errorMessage);
       }
     } else if (data.type === "apiKey") {
       try {
-        console.log({ data });
         await setApiKey(data.apiKey, data.api.url);
         mutateApi.mutate(data.api);
         mutateLogin.mutate(data);
         router.push("/");
       } catch (error) {
-        Alert.alert("Error", t("form.errors.loginFailed"));
+        const errorMessage = error instanceof Error ? error.message : t("form.errors.loginFailed");
+        Alert.alert("API Key Error", errorMessage);
       }
     }
   };
